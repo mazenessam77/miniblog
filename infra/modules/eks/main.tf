@@ -240,6 +240,8 @@ resource "aws_iam_policy" "alb_controller" {
           "iam:ListServerCertificates", "iam:GetServerCertificate",
           "wafv2:GetWebACL", "wafv2:GetWebACLForResource",
           "wafv2:AssociateWebACL", "wafv2:DisassociateWebACL",
+          "waf-regional:GetWebACLForResource", "waf-regional:GetWebACL",
+          "waf-regional:AssociateWebACL", "waf-regional:DisassociateWebACL",
           "shield:GetSubscriptionState", "shield:DescribeProtection",
           "shield:CreateProtection", "shield:DeleteProtection",
         ]
