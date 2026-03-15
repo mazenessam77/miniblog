@@ -5,7 +5,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from starlette.datastructures import State
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from sqlalchemy import text
@@ -30,9 +29,11 @@ class _RateLimitStateMiddleware:
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] == "http":
-            if "state" not in scope:
-                scope["state"] = State()
-            scope["state"].view_rate_limit = None
+            # In Starlette 0.41+, scope["state"] is a plain dict (not State).
+            # request.state wraps it lazily: State(scope["state"]).
+            # So we must use dict key access here, not attribute assignment.
+            scope.setdefault("state", {})
+            scope["state"].setdefault("view_rate_limit", None)
         await self.app(scope, receive, send)
 
 # ─── Logging ──────────────────────────────────────────────────────────────────
