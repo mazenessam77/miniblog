@@ -117,6 +117,13 @@ jobs:
           name: tfplan
           path: ${{ env.TF_WORKING_DIR }}/tfplan
 
+      - name: Upload Lambda zip
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: lambda-zip
+          path: infra/modules/media/lambda/resize.zip
+
   # ─── Terraform Apply (main branch only) ─────────────────────────────────
   terraform-apply:
     name: "Terraform Apply"
@@ -140,18 +147,11 @@ jobs:
         with:
           terraform_version: "1.9.0"
 
-      - name: Build Lambda package (Pillow for Python 3.11 Linux)
-        run: |
-          TARGET="infra/modules/media/lambda"
-          pip install pillow \
-            --target $TARGET/package \
-            --platform manylinux2014_x86_64 \
-            --implementation cp \
-            --python-version 3.11 \
-            --only-binary=:all: \
-            --quiet
-          cp $TARGET/resize.py $TARGET/package/resize.py
-          cd $TARGET/package && zip -r ../resize.zip . && cd -
+      - name: Download Lambda zip
+        uses: actions/download-artifact@v4
+        with:
+          name: lambda-zip
+          path: infra/modules/media/lambda
 
       - name: Terraform Init
         working-directory: ${{ env.TF_WORKING_DIR }}
