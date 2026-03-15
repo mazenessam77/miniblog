@@ -15,10 +15,7 @@ metadata:
     app.kubernetes.io/part-of: miniblog-platform
 data:
   # ── CORS ─────────────────────────────────────────────────────────────────
-  # Replace with your actual CloudFront domain after `terraform apply`:
-  #   terraform output frontend_cloudfront_domain
-  # Multiple origins: comma-separated
-  CORS_ORIGINS: "http://miniblog-frontend-541405370428.s3-website-us-east-1.amazonaws.com"
+  CORS_ORIGINS: "https://miniblog.com,https://www.miniblog.com"
 
   # ── Media (S3 photo uploads) ──────────────────────────────────────────────
   # Get bucket name after `terraform apply`:

@@ -74,11 +74,38 @@ output "rds_connection_string_template" {
   sensitive   = true
 }
 
+# ─── DNS / HTTPS ─────────────────────────────────────────────────────────────
+
+output "name_servers" {
+  description = "Route53 NS records — set these at your domain registrar"
+  value       = module.dns.name_servers
+}
+
+output "acm_certificate_arn" {
+  description = "ACM certificate ARN — set as ACM_CERT_ARN GitHub Secret"
+  value       = module.dns.certificate_arn
+}
+
+output "site_url" {
+  description = "Public URL of the frontend"
+  value       = "https://${var.domain_name}"
+}
+
+output "api_url" {
+  description = "Public URL of the API"
+  value       = "https://api.${var.domain_name}"
+}
+
 # ─── Frontend ────────────────────────────────────────────────────────────────
 
 output "frontend_cloudfront_domain" {
-  description = "CloudFront domain for the React frontend"
+  description = "CloudFront distribution domain name"
   value       = module.s3.cloudfront_domain
+}
+
+output "frontend_cloudfront_distribution_id" {
+  description = "CloudFront distribution ID — set as CLOUDFRONT_DISTRIBUTION_ID GitHub Secret"
+  value       = module.s3.cloudfront_distribution_id
 }
 
 output "frontend_s3_bucket" {

@@ -101,35 +101,49 @@ jobs:
           S3_BUCKET: ${{ secrets.S3_BUCKET_NAME }}
         run: |
           echo "Uploading to s3://$S3_BUCKET ..."
-          
+
           # Sync all files
           aws s3 sync dist/ s3://$S3_BUCKET \
             --delete \
             --cache-control "public, max-age=3153000, immutable" \
             --exclude "index.html" \
             --exclude "*.json"
-          
+
           # Upload index.html and JSON with no-cache (always fetch fresh)
           aws s3 cp dist/index.html s3://$S3_BUCKET/index.html \
             --cache-control "no-cache, no-store, must-revalidate"
-          
+
           # Upload JSON files with no-cache, stripping the dist/ prefix from the S3 key
           find dist -name "*.json" | while read file; do
             key="${file#dist/}"
             aws s3 cp "$file" "s3://$S3_BUCKET/$key" \
               --cache-control "no-cache, no-store, must-revalidate"
           done
-          
+
           echo "S3 sync complete"
 
-      - name: Deployment summary
+      - name: Invalidate CloudFront cache
         env:
-          S3_WEBSITE: ${{ secrets.CLOUDFRONT_DOMAIN }}
+          DISTRIBUTION_ID: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
         run: |
-          echo "##  Frontend Deployed" >> $GITHUB_STEP_SUMMARY
+          if [ -n "$DISTRIBUTION_ID" ]; then
+            echo "Invalidating CloudFront distribution $DISTRIBUTION_ID ..."
+            INVALIDATION_ID=$(aws cloudfront create-invalidation \
+              --distribution-id "$DISTRIBUTION_ID" \
+              --paths "/*" \
+              --query 'Invalidation.Id' \
+              --output text)
+            echo "Invalidation created: $INVALIDATION_ID"
+          else
+            echo "CLOUDFRONT_DISTRIBUTION_ID not set — skipping invalidation"
+          fi
+
+      - name: Deployment summary
+        run: |
+          echo "## Frontend Deployed" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Detail | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| S3 Bucket | \`${{ secrets.S3_BUCKET_NAME }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Website URL | http://$S3_WEBSITE |" >> $GITHUB_STEP_SUMMARY
+          echo "| Site URL | https://miniblog.com |" >> $GITHUB_STEP_SUMMARY
           echo "| Files | $(find dist -type f | wc -l) files |" >> $GITHUB_STEP_SUMMARY

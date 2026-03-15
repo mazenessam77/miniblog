@@ -29,9 +29,10 @@ env:
 permissions:
   contents: read
   pull-requests: write
+  secrets: write
 
 jobs:
-  # ─── Terraform Plan ──────────────────────────────────────────────────────
+  # ─── Terraform Plan ──────────────────────────────────────────────────
   terraform-plan:
     name: "Terraform Plan"
     runs-on: ubuntu-latest
@@ -82,6 +83,7 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
         env:
           TF_VAR_rds_password: ${{ secrets.RDS_PASSWORD }}
+          TF_VAR_alb_dns: ${{ secrets.ALB_DNS }}
         run: terraform plan -no-color -out=tfplan
         continue-on-error: true
 
@@ -94,11 +96,11 @@ jobs:
             \`\`\`
             ${{ steps.plan.outputs.stdout }}
             \`\`\`
-            
+
             **Result:** ${{ steps.plan.outcome == 'success' && ' Plan succeeded' || ' Plan failed' }}
-            
+
             *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
-            
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -124,7 +126,7 @@ jobs:
           name: lambda-zip
           path: infra/modules/media/lambda/resize.zip
 
-  # ─── Terraform Apply (main branch only) ─────────────────────────────────
+  # ─── Terraform Apply (main branch only) ─────────────────────────────
   terraform-apply:
     name: "Terraform Apply"
     runs-on: ubuntu-latest
@@ -167,12 +169,47 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
         env:
           TF_VAR_rds_password: ${{ secrets.RDS_PASSWORD }}
+          TF_VAR_alb_dns: ${{ secrets.ALB_DNS }}
         run: terraform apply -auto-approve tfplan
+
+      # ── Update GitHub Secrets with new infrastructure values ─────────
+      - name: Update GitHub Secrets post-apply
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          REPO: ${{ github.repository }}
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          # Capture outputs
+          ACM_CERT_ARN=$(terraform output -raw acm_certificate_arn 2>/dev/null || echo "")
+          CF_DIST_ID=$(terraform output -raw frontend_cloudfront_distribution_id 2>/dev/null || echo "")
+          S3_BUCKET=$(terraform output -raw frontend_s3_bucket 2>/dev/null || echo "")
+          CF_DOMAIN=$(terraform output -raw frontend_cloudfront_domain 2>/dev/null || echo "")
+
+          # Update secrets via GitHub CLI
+          if [ -n "$ACM_CERT_ARN" ]; then
+            echo "$ACM_CERT_ARN" | gh secret set ACM_CERT_ARN --repo "$REPO"
+            echo "Updated ACM_CERT_ARN"
+          fi
+          if [ -n "$CF_DIST_ID" ]; then
+            echo "$CF_DIST_ID" | gh secret set CLOUDFRONT_DISTRIBUTION_ID --repo "$REPO"
+            echo "Updated CLOUDFRONT_DISTRIBUTION_ID"
+          fi
+          if [ -n "$S3_BUCKET" ]; then
+            echo "$S3_BUCKET" | gh secret set S3_BUCKET_NAME --repo "$REPO"
+            echo "Updated S3_BUCKET_NAME"
+          fi
+          if [ -n "$CF_DOMAIN" ]; then
+            echo "$CF_DOMAIN" | gh secret set CLOUDFRONT_DOMAIN --repo "$REPO"
+            echo "Updated CLOUDFRONT_DOMAIN"
+          fi
+          # Set API_URL so the frontend build uses the correct endpoint
+          echo "https://api.miniblog.com" | gh secret set API_URL --repo "$REPO"
+          echo "Updated API_URL"
 
       - name: Output Summary
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
-          echo "##  Infrastructure Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "## Infrastructure Deployed" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Resource | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
@@ -180,3 +217,11 @@ jobs:
           echo "| RDS Endpoint | \`(sensitive)\` |" >> $GITHUB_STEP_SUMMARY
           echo "| S3 Bucket | $(terraform output -raw frontend_s3_bucket) |" >> $GITHUB_STEP_SUMMARY
           echo "| CloudFront | $(terraform output -raw frontend_cloudfront_domain) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Site URL | $(terraform output -raw site_url) |" >> $GITHUB_STEP_SUMMARY
+          echo "| API URL | $(terraform output -raw api_url) |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Route53 Name Servers" >> $GITHUB_STEP_SUMMARY
+          echo "Configure these at your domain registrar:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          terraform output -json name_servers | jq -r '.[]' >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
