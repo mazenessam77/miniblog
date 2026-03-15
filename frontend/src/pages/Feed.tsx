@@ -1,3 +1,4 @@
+import { Loader2, Rss } from "lucide-react";
 import { useEffect, useState } from "react";
 import PostCard from "../components/PostCard";
 import api from "../services/api";
@@ -25,14 +26,27 @@ export default function Feed() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <p>Loading...</p>;
+  if (loading)
+    return (
+      <div className="loading-state">
+        <Loader2 size={32} className="spin" />
+        <p>Loading posts…</p>
+      </div>
+    );
+
   if (error) return <p className="error">{error}</p>;
 
   return (
     <div>
-      <h1 className="feed-title">Recent Posts</h1>
+      <div className="feed-header">
+        <Rss size={22} />
+        <h1 className="feed-title">Recent Posts</h1>
+      </div>
       {posts.length === 0 ? (
-        <p>No posts yet. Be the first to write something!</p>
+        <div className="empty-state">
+          <Rss size={48} className="empty-icon" />
+          <p>No posts yet. Be the first to write something!</p>
+        </div>
       ) : (
         posts.map((post) => <PostCard key={post.id} post={post} />)
       )}

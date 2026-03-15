@@ -1,3 +1,4 @@
+import { Loader2, PenLine, ScrollText } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import PostCard from "../components/PostCard";
@@ -40,22 +41,37 @@ export default function Dashboard() {
     }
   };
 
-  if (loading) return <p>Loading...</p>;
+  if (loading)
+    return (
+      <div className="loading-state">
+        <Loader2 size={32} className="spin" />
+        <p>Loading your posts…</p>
+      </div>
+    );
+
   if (error) return <p className="error">{error}</p>;
 
   return (
     <div>
       <div className="page-header">
-        <h1>My Posts</h1>
+        <h1>
+          <ScrollText size={22} />
+          My Posts
+        </h1>
         <Link to="/create" className="btn">
+          <PenLine size={16} />
           New Post
         </Link>
       </div>
       {posts.length === 0 ? (
-        <p>
-          You haven't written any posts yet.{" "}
-          <Link to="/create">Create your first post</Link>
-        </p>
+        <div className="empty-state">
+          <ScrollText size={48} className="empty-icon" />
+          <p>You haven't written any posts yet.</p>
+          <Link to="/create" className="btn" style={{ marginTop: "1rem" }}>
+            <PenLine size={16} />
+            Write your first post
+          </Link>
+        </div>
       ) : (
         posts.map((post) => (
           <PostCard
