@@ -93,7 +93,6 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     outputs:
       image-tag: ${{ steps.meta.outputs.short-sha }}
-      image-uri: ${{ steps.build.outputs.image-uri }}
 
     steps:
       - name: Checkout code
@@ -197,12 +196,15 @@ jobs:
 
       - name: Deploy with new image
         env:
-          IMAGE_URI: ${{ needs.build-and-push.outputs.image-uri }}
+          IMAGE_TAG: ${{ needs.build-and-push.outputs.image-tag }}
         run: |
-          # Always apply the manifest with the real image URI substituted.
-          # This works for both first deploy (create) and updates (rolling update).
-          # Using `kubectl apply` is idempotent — safe to run on every push.
-          sed "s|541405370428.dkr.ecr.us-east-1.amazonaws.com/miniblog/backend:latest|$IMAGE_URI|g" \
+          # Reconstruct the full image URI from account ID + region + repo + tag.
+          # This avoids passing secret-containing values as job outputs.
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          IMAGE_URI=$ACCOUNT_ID.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:$IMAGE_TAG
+
+          # Substitute into the manifest and apply (idempotent).
+          sed "s|$ACCOUNT_ID.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest|$IMAGE_URI|g" \
             infra/k8s/backend-deployment.yaml | kubectl apply -f -
 
       - name: Wait for rollout
@@ -241,8 +243,8 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Detail | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Image | \`${{ needs.build-and-push.outputs.image-uri }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Tag | \`${{ needs.build-and-push.outputs.image-tag }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Repository | \`${{ env.ECR_REPOSITORY }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Namespace | \`${{ env.K8S_NAMESPACE }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Pods |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
