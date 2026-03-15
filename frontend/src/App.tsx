@@ -17,9 +17,9 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 
 export default function App() {
   return (
-    <>
+    <div className="app-layout">
       <Navbar />
-      <main className="container">
+      <main className="main-feed">
         <Routes>
           <Route path="/" element={<Feed />} />
           <Route path="/login" element={<Login />} />
@@ -51,6 +51,6 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
-    </>
+    </div>
   );
 }

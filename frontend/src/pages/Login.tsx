@@ -1,4 +1,4 @@
-import { KeyRound, LogIn, User } from "lucide-react";
+import { PenLine } from "lucide-react";
 import { FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
@@ -17,9 +17,9 @@ export default function Login() {
     setLoading(true);
     try {
       await login(username, password);
-      navigate("/dashboard");
+      navigate("/");
     } catch (err: any) {
-      setError(err.response?.data?.detail || "Login failed");
+      setError(err.response?.data?.detail || "Invalid username or password");
     } finally {
       setLoading(false);
     }
@@ -27,41 +27,55 @@ export default function Login() {
 
   return (
     <div className="auth-page">
-      <div className="auth-icon">
-        <LogIn size={32} />
+      <div className="auth-brand">
+        <PenLine size={96} className="auth-brand-logo" />
       </div>
-      <h1>Welcome back</h1>
-      <p className="auth-subtitle">Sign in to your account</p>
-      {error && <p className="error">{error}</p>}
-      <form onSubmit={handleSubmit}>
-        <div className="input-group">
-          <User size={16} className="input-icon" />
-          <input
-            type="text"
-            placeholder="Username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            required
-          />
-        </div>
-        <div className="input-group">
-          <KeyRound size={16} className="input-icon" />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-        </div>
-        <button type="submit" disabled={loading}>
-          {loading ? <span className="btn-spinner" /> : <LogIn size={16} />}
-          {loading ? "Signing in…" : "Sign In"}
-        </button>
-      </form>
-      <p className="auth-link">
-        Don't have an account? <Link to="/register">Register</Link>
-      </p>
+
+      <div className="auth-form-side">
+        <Link to="/" className="auth-form-logo">
+          <PenLine size={26} />
+          MiniBlog
+        </Link>
+
+        <h1>Sign in to MiniBlog</h1>
+        <p className="auth-subtitle">Welcome back. Pick up where you left off.</p>
+
+        {error && <p className="error">{error}</p>}
+
+        <form onSubmit={handleSubmit} className="auth-fields">
+          <div>
+            <label className="field-label">Username</label>
+            <input
+              type="text"
+              className="field-input"
+              placeholder="Your username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className="field-label">Password</label>
+            <input
+              type="password"
+              className="field-input"
+              placeholder="Your password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </div>
+          <button type="submit" className="auth-submit" disabled={loading}>
+            {loading && <span className="btn-spinner" />}
+            {loading ? "Signing in…" : "Sign in"}
+          </button>
+        </form>
+
+        <p className="auth-footer-text">
+          Don't have an account? <Link to="/register">Create one</Link>
+        </p>
+      </div>
     </div>
   );
 }

@@ -24,10 +24,10 @@ export default function Dashboard() {
   useEffect(() => {
     api
       .get("/posts")
-      .then((res) => {
-        setPosts(res.data.filter((p: Post) => p.author_id === user?.id));
-      })
-      .catch(() => setError("Failed to load posts. Please try again."))
+      .then((res) =>
+        setPosts(res.data.filter((p: Post) => p.author_id === user?.id))
+      )
+      .catch(() => setError("Failed to load posts."))
       .finally(() => setLoading(false));
   }, [user]);
 
@@ -44,30 +44,31 @@ export default function Dashboard() {
   if (loading)
     return (
       <div className="loading-state">
-        <Loader2 size={32} className="spin" />
-        <p>Loading your posts…</p>
+        <Loader2 size={30} className="spin" />
+        <span>Loading your posts…</span>
       </div>
     );
 
-  if (error) return <p className="error">{error}</p>;
+  if (error) return <p className="error" style={{ margin: 20 }}>{error}</p>;
 
   return (
     <div>
-      <div className="page-header">
-        <h1>
-          <ScrollText size={22} />
-          My Posts
-        </h1>
-        <Link to="/create" className="btn">
-          <PenLine size={16} />
-          New Post
-        </Link>
+      <div className="feed-page-header">
+        <div className="feed-page-header-row">
+          <h1>My Posts</h1>
+          <Link to="/create" className="btn-new-post">
+            <PenLine size={15} />
+            New Post
+          </Link>
+        </div>
       </div>
+
       {posts.length === 0 ? (
         <div className="empty-state">
-          <ScrollText size={48} className="empty-icon" />
-          <p>You haven't written any posts yet.</p>
-          <Link to="/create" className="btn" style={{ marginTop: "1rem" }}>
+          <ScrollText size={52} className="empty-state-icon" />
+          <h3>No posts yet</h3>
+          <p>Your posts will appear here once you write something.</p>
+          <Link to="/create" className="btn">
             <PenLine size={16} />
             Write your first post
           </Link>
