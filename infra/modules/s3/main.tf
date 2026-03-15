@@ -15,7 +15,7 @@ resource "aws_s3_bucket_website_configuration" "frontend" {
   bucket = aws_s3_bucket.frontend.id
 
   index_document { suffix = "index.html" }
-  error_document { key = "index.html" }   # SPA — React Router handles all paths
+  error_document { key = "index.html" } # SPA — React Router handles all paths
 }
 
 resource "aws_s3_bucket_versioning" "frontend" {

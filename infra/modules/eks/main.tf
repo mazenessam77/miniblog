@@ -20,8 +20,8 @@ resource "aws_eks_cluster" "main" {
   vpc_config {
     # Control plane lives across public+private; nodes in private only
     subnet_ids              = concat(var.private_subnet_ids, var.public_subnet_ids)
-    endpoint_public_access  = true   # kubectl from developer machines
-    endpoint_private_access = true   # pods → API server stays in VPC
+    endpoint_public_access  = true # kubectl from developer machines
+    endpoint_private_access = true # pods → API server stays in VPC
     # Harden in production by adding: public_access_cidrs = ["<office_ip>/32"]
   }
 
@@ -32,7 +32,7 @@ resource "aws_eks_cluster" "main" {
 
   kubernetes_network_config {
     ip_family         = "ipv4"
-    service_ipv4_cidr = "172.20.0.0/16"  # Cluster-internal service CIDR
+    service_ipv4_cidr = "172.20.0.0/16" # Cluster-internal service CIDR
   }
 
   tags = { Name = "${var.name}-cluster" }
@@ -63,8 +63,8 @@ resource "aws_launch_template" "nodes" {
 
   metadata_options {
     http_endpoint               = "enabled"
-    http_tokens                 = "required"  # IMDSv2 enforced
-    http_put_response_hop_limit = 2            # 2 = works inside containers
+    http_tokens                 = "required" # IMDSv2 enforced
+    http_put_response_hop_limit = 2          # 2 = works inside containers
   }
 
   block_device_mappings {
@@ -93,7 +93,7 @@ resource "aws_eks_node_group" "main" {
   cluster_name    = aws_eks_cluster.main.name
   node_group_name = "${var.name}-workers"
   node_role_arn   = var.node_role_arn
-  subnet_ids      = var.private_subnet_ids   # Workers NEVER in public subnets
+  subnet_ids      = var.private_subnet_ids # Workers NEVER in public subnets
 
   instance_types = var.node_instance_types
   capacity_type  = "ON_DEMAND"

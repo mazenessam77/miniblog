@@ -33,7 +33,7 @@ resource "aws_subnet" "public" {
 
   tags = {
     Name                     = "${var.name}-public-${var.azs[count.index]}"
-    "kubernetes.io/role/elb" = "1"   # Tells AWS LBC this subnet is for public ALBs
+    "kubernetes.io/role/elb" = "1" # Tells AWS LBC this subnet is for public ALBs
   }
 }
 
@@ -47,8 +47,8 @@ resource "aws_subnet" "private_app" {
   availability_zone = var.azs[count.index]
 
   tags = {
-    Name                              = "${var.name}-private-app-${var.azs[count.index]}"
-    "kubernetes.io/role/internal-elb" = "1"   # Internal ALBs
+    Name                                        = "${var.name}-private-app-${var.azs[count.index]}"
+    "kubernetes.io/role/internal-elb"           = "1" # Internal ALBs
     "kubernetes.io/cluster/${var.name}-cluster" = "shared"
   }
 }
@@ -81,7 +81,7 @@ resource "aws_nat_gateway" "main" {
   count = length(var.azs)
 
   allocation_id = aws_eip.nat[count.index].id
-  subnet_id     = aws_subnet.public[count.index].id   # NAT lives in PUBLIC subnet
+  subnet_id     = aws_subnet.public[count.index].id # NAT lives in PUBLIC subnet
 
   tags       = { Name = "${var.name}-nat-${var.azs[count.index]}" }
   depends_on = [aws_internet_gateway.main]

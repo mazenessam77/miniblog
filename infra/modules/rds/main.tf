@@ -18,7 +18,7 @@ resource "aws_security_group" "rds" {
     from_port       = 5432
     to_port         = 5432
     protocol        = "tcp"
-    security_groups = [var.eks_node_sg_id]   # Only backend pods can connect
+    security_groups = [var.eks_node_sg_id] # Only backend pods can connect
   }
 
   # No egress rule — RDS does not initiate outbound connections.
@@ -57,7 +57,7 @@ resource "aws_db_parameter_group" "postgres" {
 
   parameter {
     name         = "log_min_duration_statement"
-    value        = "1000"    # Log queries taking > 1 second
+    value        = "1000" # Log queries taking > 1 second
     apply_method = "pending-reboot"
   }
 
@@ -77,9 +77,9 @@ resource "aws_db_instance" "main" {
 
   # Storage
   allocated_storage     = var.storage_gb
-  max_allocated_storage = var.storage_gb * 2    # Enable auto-scaling up to 2x
+  max_allocated_storage = var.storage_gb * 2 # Enable auto-scaling up to 2x
   storage_type          = "gp3"
-  storage_encrypted     = true                   # Encrypted at rest
+  storage_encrypted     = true # Encrypted at rest
 
   # Database
   db_name  = "miniblog"
@@ -90,12 +90,12 @@ resource "aws_db_instance" "main" {
   # Networking — PRIVATE ONLY
   db_subnet_group_name   = aws_db_subnet_group.main.name
   vpc_security_group_ids = [aws_security_group.rds.id]
-  publicly_accessible    = false                 # ← CRITICAL: never expose to internet
-  multi_az               = var.multi_az          # HA standby in second AZ
+  publicly_accessible    = false        # ← CRITICAL: never expose to internet
+  multi_az               = var.multi_az # HA standby in second AZ
 
   # Backup
   backup_retention_period = 7
-  backup_window           = "03:00-04:00"        # UTC — low-traffic window
+  backup_window           = "03:00-04:00" # UTC — low-traffic window
   maintenance_window      = "sun:04:00-sun:05:00"
   copy_tags_to_snapshot   = true
 
@@ -104,8 +104,8 @@ resource "aws_db_instance" "main" {
   allow_major_version_upgrade = false
 
   # Deletion protection
-  deletion_protection       = false
-  skip_final_snapshot       = true
+  deletion_protection = false
+  skip_final_snapshot = true
 
   # Performance Insights (free tier for 7 days)
   performance_insights_enabled          = true
