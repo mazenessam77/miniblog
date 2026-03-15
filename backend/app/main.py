@@ -5,7 +5,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.middleware import SlowAPIMiddleware
+from starlette.datastructures import State
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from sqlalchemy import text
 
@@ -13,6 +14,26 @@ from app.database.connection import Base, engine
 import app.models.user  # noqa: F401 — register User with Base
 import app.models.post  # noqa: F401 — register Post with Base
 from app.services.rate_limit import limiter
+
+
+class _RateLimitStateMiddleware:
+    """Pure-ASGI shim: initialise view_rate_limit on scope state before routing.
+
+    SlowAPIMiddleware (BaseHTTPMiddleware) no longer shares request.state with
+    endpoint handlers in Starlette 0.40+ — the scope dict is copied on each
+    call_next invocation.  This raw ASGI middleware mutates the scope directly,
+    so every Request created from it sees the same State object.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http":
+            if "state" not in scope:
+                scope["state"] = State()
+            scope["state"].view_rate_limit = None
+        await self.app(scope, receive, send)
 
 # ─── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -34,7 +55,7 @@ app = FastAPI(
 # ─── Rate Limiting ────────────────────────────────────────────────────────────
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-app.add_middleware(SlowAPIMiddleware)
+app.add_middleware(_RateLimitStateMiddleware)
 
 # ─── CORS ─────────────────────────────────────────────────────────────────────
 # Local dev:  defaults to http://localhost:3000
