@@ -5,6 +5,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database.connection import Base, engine
+import app.models.user  # noqa: F401 — register User with Base
+import app.models.post  # noqa: F401 — register Post with Base
 
 # ─── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(
