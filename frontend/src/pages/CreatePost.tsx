@@ -41,11 +41,12 @@ export default function CreatePost() {
         filename: file.name,
         content_type: file.type,
       });
-      await fetch(data.upload_url, {
+      const uploadRes = await fetch(data.upload_url, {
         method: "PUT",
         body: file,
         headers: { "Content-Type": file.type },
       });
+      if (!uploadRes.ok) throw new Error(`Upload failed: ${uploadRes.status}`);
       setImageKey(data.key);
       setImagePreview(URL.createObjectURL(file));
     } catch {
