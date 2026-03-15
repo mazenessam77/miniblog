@@ -1,0 +1,23 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  Backend Service
+#  - ClusterIP type — only reachable from within the cluster
+#  - The Ingress resource routes external traffic to this Service
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+  namespace: miniblog
+  labels:
+    app.kubernetes.io/name: backend
+    app.kubernetes.io/part-of: miniblog-platform
+    app.kubernetes.io/component: api
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: backend
+  ports:
+    - name: http
+      port: 80
+      targetPort: http      # Maps to containerPort 8000
+      protocol: TCP

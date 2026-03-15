@@ -1,0 +1,97 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  Backend Deployment
+#  - 3 replicas for high availability
+#  - Rolling update strategy (zero-downtime deployments)
+#  - Resource requests/limits for pod scheduling
+#  - Liveness & readiness probes for self-healing
+#  - Environment variables injected from ConfigMap and Secret
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: miniblog
+  labels:
+    app.kubernetes.io/name: backend
+    app.kubernetes.io/part-of: miniblog-platform
+    app.kubernetes.io/component: api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: backend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1      # At most 1 pod goes down during update
+      maxSurge: 1             # At most 1 extra pod spins up during update
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: backend
+        app.kubernetes.io/part-of: miniblog-platform
+        app.kubernetes.io/component: api
+    spec:
+      serviceAccountName: backend-sa
+      terminationGracePeriodSeconds: 30
+
+      containers:
+        - name: backend
+          # Replace <ACCOUNT_ID> and <REGION> after terraform apply:
+          #   image: <ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/miniblog/backend:latest
+          image: 541405370428.dkr.ecr.us-east-1.amazonaws.com/miniblog/backend:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+
+          # ── Environment Variables ──────────────────────────────────
+          envFrom:
+            - configMapRef:
+                name: backend-config
+            - secretRef:
+                name: backend-secrets
+
+          # ── Resource Management ────────────────────────────────────
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+
+          # ── Health Checks ──────────────────────────────────────────
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          # ── Security Context ───────────────────────────────────────
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+
+      volumes:
+        - name: tmp
+          emptyDir: {}

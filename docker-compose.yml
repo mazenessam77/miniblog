@@ -1,0 +1,52 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  MiniBlog Platform — Local Development with Docker Compose
+#  Run:  docker compose up --build
+#
+#  This mirrors the AWS production architecture locally:
+#    Frontend (React)  →  Backend (FastAPI)  →  PostgreSQL
+#      :3000                 :8000                :5432
+# ─────────────────────────────────────────────────────────────────────────────
+version: "3.8"
+
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: miniblog
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      # These match the same env vars used in K8s (ConfigMap + Secret)
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/miniblog
+      SECRET_KEY: docker-dev-secret-key-change-in-prod
+      CORS_ORIGINS: "http://localhost:3000,http://localhost:5173"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:

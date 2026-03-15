@@ -1,0 +1,25 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  Backend ConfigMap — Non-sensitive configuration
+#  These values are injected as environment variables into every backend pod.
+#  Matches the env vars read by:
+#    - app/main.py            → CORS_ORIGINS
+#    - app/database/connection → (DATABASE_URL is in Secret, not here)
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: miniblog
+  labels:
+    app.kubernetes.io/name: backend
+    app.kubernetes.io/part-of: miniblog-platform
+data:
+  # ── CORS ─────────────────────────────────────────────────────────────────
+  # Replace with your actual CloudFront domain after `terraform apply`:
+  #   terraform output frontend_cloudfront_domain
+  # Multiple origins: comma-separated
+  CORS_ORIGINS: "http://miniblog-frontend-541405370428.s3-website-us-east-1.amazonaws.com"
+
+  # ── Python / Uvicorn ─────────────────────────────────────────────────────
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"

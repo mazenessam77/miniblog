@@ -1,0 +1,286 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  Pipeline 2: Backend Deploy — Build → ECR → EKS
+#
+#  Automates Steps 2 + 3 + 4:
+#    Step 2: docker build & push to ECR
+#    Step 3: Update K8s secrets with real RDS endpoint
+#    Step 4: kubectl apply → deploys pods
+#
+#  Triggers:
+#    - PR with backend/ changes   → test + build (no deploy)
+#    - Push to main with backend/ → test + build + deploy to EKS
+# ─────────────────────────────────────────────────────────────────────────────
+name: "⚙️ Backend Deploy"
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "infra/k8s/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "backend/**"
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+  EKS_CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}
+  K8S_NAMESPACE: miniblog
+
+jobs:
+  # ─── Test ────────────────────────────────────────────────────────────────
+  test:
+    name: "🧪 Test"
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: miniblog_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          pip install -r requirements.txt
+          pip install pytest httpx
+
+      - name: Run tests
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/miniblog_test
+          SECRET_KEY: test-secret-key-for-ci
+        run: |
+          # Run pytest if tests exist, otherwise just verify the app starts
+          if [ -d "tests" ] && [ "$(ls tests/)" ]; then
+            pytest tests/ -v
+          else
+            python -c "from app.main import app; print('✅ App imports successfully')"
+          fi
+
+      - name: Lint check
+        working-directory: backend
+        run: |
+          pip install ruff
+          ruff check app/ --output-format=github || true
+
+  # ─── Build & Push to ECR (Step 2) ───────────────────────────────────────
+  build-and-push:
+    name: "🐳 Build & Push to ECR"
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    outputs:
+      image-tag: ${{ steps.meta.outputs.short-sha }}
+      image-uri: ${{ steps.build.outputs.image-uri }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Generate image metadata
+        id: meta
+        run: |
+          SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          echo "short-sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+          echo "registry=${{ steps.ecr-login.outputs.registry }}" >> $GITHUB_OUTPUT
+
+      - name: Build, tag, and push Docker image
+        id: build
+        working-directory: backend
+        env:
+          REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          REPOSITORY: ${{ env.ECR_REPOSITORY }}
+          SHORT_SHA: ${{ steps.meta.outputs.short-sha }}
+        run: |
+          IMAGE_URI=$REGISTRY/$REPOSITORY
+          
+          # Build the production image
+          docker build \
+            --label "org.opencontainers.image.revision=${{ github.sha }}" \
+            --label "org.opencontainers.image.created=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            -t $IMAGE_URI:$SHORT_SHA \
+            -t $IMAGE_URI:latest \
+            -t $IMAGE_URI:main-${{ github.run_number }} \
+            .
+          
+          # Push all tags
+          docker push $IMAGE_URI --all-tags
+          
+          echo "image-uri=$IMAGE_URI:$SHORT_SHA" >> $GITHUB_OUTPUT
+          echo "✅ Pushed: $IMAGE_URI:$SHORT_SHA"
+          echo "✅ Pushed: $IMAGE_URI:latest"
+          echo "✅ Pushed: $IMAGE_URI:main-${{ github.run_number }}"
+
+  # ─── Deploy to EKS (Steps 3 + 4) ────────────────────────────────────────
+  deploy:
+    name: "🚀 Deploy to EKS"
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Configure kubectl
+        run: |
+          aws eks update-kubeconfig \
+            --region ${{ env.AWS_REGION }} \
+            --name ${{ env.EKS_CLUSTER_NAME }}
+
+      # ── Step 3: Update K8s secrets with real RDS endpoint ──────────────
+      - name: Apply Kubernetes namespace
+        run: kubectl apply -f infra/k8s/namespace.yaml
+
+      - name: Create/Update K8s Secrets
+        run: |
+          # Create the secret from GitHub Secrets (not from the YAML file)
+          # This way, secrets NEVER exist in Git
+          kubectl create secret generic backend-secrets \
+            --namespace=${{ env.K8S_NAMESPACE }} \
+            --from-literal=DATABASE_URL="postgresql://miniblog_admin:${{ secrets.RDS_PASSWORD }}@${{ secrets.RDS_ENDPOINT }}/miniblog" \
+            --from-literal=SECRET_KEY="${{ secrets.JWT_SECRET_KEY }}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Apply ConfigMap
+        run: kubectl apply -f infra/k8s/backend-configmap.yaml
+
+      - name: Apply ServiceAccount
+        run: kubectl apply -f infra/k8s/backend-serviceaccount.yaml
+
+      # ── Step 4: kubectl apply → deploy pods ────────────────────────────
+      - name: Apply Service and Ingress
+        run: |
+          kubectl apply -f infra/k8s/backend-service.yaml
+          kubectl apply -f infra/k8s/backend-ingress.yaml
+          kubectl apply -f infra/k8s/backend-hpa.yaml
+
+      - name: Deploy with new image
+        env:
+          IMAGE_URI: ${{ needs.build-and-push.outputs.image-uri }}
+        run: |
+          # Always apply the manifest with the real image URI substituted.
+          # This works for both first deploy (create) and updates (rolling update).
+          # Using `kubectl apply` is idempotent — safe to run on every push.
+          sed "s|541405370428.dkr.ecr.us-east-1.amazonaws.com/miniblog/backend:latest|$IMAGE_URI|g" \
+            infra/k8s/backend-deployment.yaml | kubectl apply -f -
+
+      - name: Wait for rollout
+        run: |
+          echo "⏳ Waiting for deployment rollout..."
+          kubectl rollout status deployment/backend \
+            --namespace=${{ env.K8S_NAMESPACE }} \
+            --timeout=180s
+
+      - name: Health check
+        run: |
+          # Get the ALB URL
+          ALB_DNS=$(kubectl get ingress -n ${{ env.K8S_NAMESPACE }} \
+            -o jsonpath='{.items[0].status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
+          
+          if [ -n "$ALB_DNS" ]; then
+            echo "🔍 Checking health at http://$ALB_DNS/health ..."
+            sleep 30  # Give ALB time to register targets
+            
+            for i in $(seq 1 5); do
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://$ALB_DNS/health" || echo "000")
+              if [ "$STATUS" = "200" ]; then
+                echo "✅ Health check passed!"
+                break
+              fi
+              echo "⏳ Attempt $i/5 — got HTTP $STATUS, retrying in 15s..."
+              sleep 15
+            done
+          else
+            echo "⚠️ ALB not ready yet — skipping health check"
+          fi
+
+      - name: Deployment summary
+        run: |
+          echo "## ⚙️ Backend Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Detail | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Image | \`${{ needs.build-and-push.outputs.image-uri }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tag | \`${{ needs.build-and-push.outputs.image-tag }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Namespace | \`${{ env.K8S_NAMESPACE }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Pods |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          kubectl get pods -n ${{ env.K8S_NAMESPACE }} >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+  # ─── Rollback (manual trigger) ──────────────────────────────────────────
+  rollback:
+    name: "⏪ Rollback"
+    runs-on: ubuntu-latest
+    if: failure() && needs.deploy.result == 'failure'
+    needs: deploy
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Configure kubectl
+        run: |
+          aws eks update-kubeconfig \
+            --region ${{ env.AWS_REGION }} \
+            --name ${{ env.EKS_CLUSTER_NAME }}
+
+      - name: Rollback deployment
+        run: |
+          echo "❌ Deployment failed — rolling back..."
+          kubectl rollout undo deployment/backend \
+            --namespace=${{ env.K8S_NAMESPACE }}
+          
+          kubectl rollout status deployment/backend \
+            --namespace=${{ env.K8S_NAMESPACE }} \
+            --timeout=120s
+          
+          echo "✅ Rollback completed"
+          echo "## ⏪ Rollback Executed" >> $GITHUB_STEP_SUMMARY
+          echo "Deployment failed and was rolled back to the previous version." >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,29 @@
+# Copy this file to terraform.tfvars and fill in real values.
+# Never commit terraform.tfvars to version control — add it to .gitignore.
+
+# ─── Global ──────────────────────────────────────────────────────────────────
+aws_region   = "us-east-1"
+environment  = "production"
+project_name = "miniblog"
+
+# ─── Networking ──────────────────────────────────────────────────────────────
+vpc_cidr = "10.0.0.0/16"
+
+# ─── EKS ─────────────────────────────────────────────────────────────────────
+eks_cluster_version     = "1.29"
+eks_node_instance_types = ["t3.medium"]
+eks_node_min_size       = 2
+eks_node_max_size       = 6
+eks_node_desired_size   = 2
+
+# ─── RDS ─────────────────────────────────────────────────────────────────────
+rds_instance_class = "db.t3.small"
+rds_storage_gb     = 20
+rds_multi_az       = true
+
+# SENSITIVE — use AWS Secrets Manager or environment variables in CI/CD
+rds_username = "miniblog_admin"
+rds_password = "CHANGE_ME_USE_A_STRONG_PASSWORD_16CHARS_MIN"
+
+# ─── DNS ─────────────────────────────────────────────────────────────────────
+domain_name = "miniblog.example.com"
