@@ -158,12 +158,6 @@ resource "aws_iam_role_policy_attachment" "lambda_basic" {
 #     --python-version 3.11 --only-binary=:all: --quiet
 #   cp infra/modules/media/lambda/resize.py infra/modules/media/lambda/package/
 
-data "archive_file" "lambda_zip" {
-  type        = "zip"
-  source_dir  = "${path.module}/lambda/package"
-  output_path = "${path.module}/lambda/resize.zip"
-}
-
 # ─── CloudWatch Log Group ─────────────────────────────────────────────────────
 
 resource "aws_cloudwatch_log_group" "lambda" {
@@ -177,8 +171,8 @@ resource "aws_cloudwatch_log_group" "lambda" {
 resource "aws_lambda_function" "resize" {
   function_name    = "${var.name}-resize"
   role             = aws_iam_role.lambda_resize.arn
-  filename         = data.archive_file.lambda_zip.output_path
-  source_code_hash = data.archive_file.lambda_zip.output_base64sha256
+  filename         = "${path.module}/lambda/resize.zip"
+  source_code_hash = filebase64sha256("${path.module}/lambda/resize.zip")
   handler          = "resize.handler"
   runtime          = "python3.11"
   timeout          = 30

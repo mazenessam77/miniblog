@@ -50,19 +50,20 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "1..0"
+          terraform_version: "1.9.0"
 
       - name: Build Lambda package (Pillow for Python 3.11 Linux)
         run: |
+          TARGET="infra/modules/media/lambda"
           pip install pillow \
-            --target infra/modules/media/lambda/package \
+            --target $TARGET/package \
             --platform manylinux2014_x86_64 \
             --implementation cp \
             --python-version 3.11 \
             --only-binary=:all: \
             --quiet
-          cp infra/modules/media/lambda/resize.py \
-             infra/modules/media/lambda/package/resize.py
+          cp $TARGET/resize.py $TARGET/package/resize.py
+          cd $TARGET/package && zip -r ../resize.zip . && cd -
 
       - name: Terraform Init
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -137,19 +138,20 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "1..0"
+          terraform_version: "1.9.0"
 
       - name: Build Lambda package (Pillow for Python 3.11 Linux)
         run: |
+          TARGET="infra/modules/media/lambda"
           pip install pillow \
-            --target infra/modules/media/lambda/package \
+            --target $TARGET/package \
             --platform manylinux2014_x86_64 \
             --implementation cp \
             --python-version 3.11 \
             --only-binary=:all: \
             --quiet
-          cp infra/modules/media/lambda/resize.py \
-             infra/modules/media/lambda/package/resize.py
+          cp $TARGET/resize.py $TARGET/package/resize.py
+          cd $TARGET/package && zip -r ../resize.zip . && cd -
 
       - name: Terraform Init
         working-directory: ${{ env.TF_WORKING_DIR }}
