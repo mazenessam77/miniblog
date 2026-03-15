@@ -1,6 +1,6 @@
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.database.connection import get_db
@@ -8,6 +8,7 @@ from app.models.post import Post
 from app.models.user import User
 from app.schemas.post import PostCreate, PostResponse, PostUpdate
 from app.services.auth import get_current_user
+from app.services.rate_limit import limiter
 
 router = APIRouter(prefix="/posts", tags=["Posts"])
 
@@ -25,7 +26,8 @@ def _to_response(post: Post) -> PostResponse:
 
 
 @router.get("", response_model=List[PostResponse])
-def list_posts(db: Session = Depends(get_db)):
+@limiter.limit("60/minute")
+def list_posts(request: Request, db: Session = Depends(get_db)):
     posts = db.query(Post).order_by(Post.created_at.desc()).all()
     return [_to_response(p) for p in posts]
 
@@ -39,7 +41,9 @@ def get_post(post_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=PostResponse, status_code=201)
+@limiter.limit("20/minute")
 def create_post(
+    request: Request,
     data: PostCreate,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
@@ -52,7 +56,9 @@ def create_post(
 
 
 @router.put("/{post_id}", response_model=PostResponse)
+@limiter.limit("30/minute")
 def update_post(
+    request: Request,
     post_id: int,
     data: PostUpdate,
     db: Session = Depends(get_db),
@@ -75,7 +81,9 @@ def update_post(
 
 
 @router.delete("/{post_id}", status_code=204)
+@limiter.limit("20/minute")
 def delete_post(
+    request: Request,
     post_id: int,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),

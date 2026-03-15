@@ -51,6 +51,16 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -72,6 +82,7 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/miniblog_test
           SECRET_KEY: test-secret-key-for-ci
+          REDIS_URL: redis://localhost:6379/0
         run: |
           # Run pytest if tests exist, otherwise just verify the app starts
           if [ -d "tests" ] && [ "$(ls tests/)" ]; then
@@ -180,6 +191,7 @@ jobs:
             --namespace=${{ env.K8S_NAMESPACE }} \
             --from-literal=DATABASE_URL="postgresql://miniblog_admin:${{ secrets.RDS_PASSWORD }}@${{ secrets.RDS_ENDPOINT }}/miniblog" \
             --from-literal=SECRET_KEY="${{ secrets.JWT_SECRET_KEY }}" \
+            --from-literal=REDIS_URL="redis://${{ secrets.REDIS_ENDPOINT }}:6379/0" \
             --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Apply ConfigMap

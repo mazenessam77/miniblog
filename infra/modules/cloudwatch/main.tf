@@ -188,6 +188,36 @@ resource "aws_cloudwatch_dashboard" "main" {
   })
 }
 
+# ─── Rate-Limit (429) Alarm ───────────────────────────────────────────────────
+
+resource "aws_cloudwatch_log_metric_filter" "rate_limit_hits" {
+  name           = "${var.name}-rate-limit-hits"
+  log_group_name = aws_cloudwatch_log_group.app.name
+  pattern        = "\"429\""
+
+  metric_transformation {
+    name      = "RateLimitHits"
+    namespace = "MiniBlog/${var.name}"
+    value     = "1"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "rate_limit_spike" {
+  alarm_name          = "${var.name}-rate-limit-spike"
+  alarm_description   = "More than 100 rate-limited (429) responses in 5 minutes — possible abuse"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "RateLimitHits"
+  namespace           = "MiniBlog/${var.name}"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 100
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+
+  tags = { Name = "${var.name}-rate-limit-alarm" }
+}
+
 # ─── Data Sources ─────────────────────────────────────────────────────────────
 
 data "aws_region" "current" {}

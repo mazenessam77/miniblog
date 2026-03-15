@@ -91,6 +91,13 @@ output "frontend_deploy_command" {
   value       = "aws s3 sync ./frontend/dist s3://${module.s3.bucket_name} --delete"
 }
 
+# ─── ElastiCache (Redis) ─────────────────────────────────────────────────────
+
+output "redis_primary_endpoint" {
+  description = "ElastiCache Redis primary endpoint — use in REDIS_URL: redis://<value>:6379/0"
+  value       = module.elasticache.primary_endpoint
+}
+
 # ─── CloudWatch ──────────────────────────────────────────────────────────────
 
 output "cloudwatch_app_log_group" {

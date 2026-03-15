@@ -92,6 +92,19 @@ module "rds" {
   depends_on = [module.vpc, module.eks]
 }
 
+# ─── ElastiCache (Redis — Rate Limiting) ─────────────────────────────────────
+
+module "elasticache" {
+  source = "./modules/elasticache"
+
+  name           = local.name
+  vpc_id         = module.vpc.vpc_id
+  subnet_ids     = module.vpc.private_app_subnet_ids
+  eks_node_sg_id = module.eks.cluster_security_group_id
+
+  depends_on = [module.vpc, module.eks]
+}
+
 # ─── S3 + CloudFront (Static Frontend) ───────────────────────────────────────
 
 module "s3" {

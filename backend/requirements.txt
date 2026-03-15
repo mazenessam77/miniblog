@@ -7,3 +7,6 @@ passlib[bcrypt]==1.7.4
 bcrypt==3.2.2
 pydantic[email]==2.9.2
 python-multipart==0.0.9
+slowapi==0.1.9
+redis==5.0.8
+limits[redis]==3.12.0

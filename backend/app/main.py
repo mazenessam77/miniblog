@@ -3,10 +3,14 @@ import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from app.database.connection import Base, engine
 import app.models.user  # noqa: F401 — register User with Base
 import app.models.post  # noqa: F401 — register Post with Base
+from app.services.rate_limit import limiter
 
 # ─── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -24,6 +28,11 @@ app = FastAPI(
     description="A minimal blogging platform REST API",
     version="1.0.0",
 )
+
+# ─── Rate Limiting ────────────────────────────────────────────────────────────
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 # ─── CORS ─────────────────────────────────────────────────────────────────────
 # Local dev:  defaults to http://localhost:3000
