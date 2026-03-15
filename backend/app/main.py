@@ -74,11 +74,12 @@ app.add_middleware(
 )
 
 # ─── Routes ───────────────────────────────────────────────────────────────────
-from app.routes import auth, media, posts  # noqa: E402
+from app.routes import auth, media, posts, profile  # noqa: E402
 
 app.include_router(auth.router)
 app.include_router(posts.router)
 app.include_router(media.router)
+app.include_router(profile.router)
 
 
 @app.get("/health", tags=["Health"])
@@ -92,6 +93,9 @@ def startup_event():
     with engine.connect() as conn:
         conn.execute(
             text("ALTER TABLE posts ADD COLUMN IF NOT EXISTS image_key VARCHAR(500)")
+        )
+        conn.execute(
+            text("ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_key VARCHAR(500)")
         )
         conn.commit()
     logger.info("MiniBlog API started")

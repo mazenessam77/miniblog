@@ -8,6 +8,7 @@ interface Post {
   author_id: number;
   author_username: string;
   image_url?: string | null;
+  author_avatar_url?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -53,8 +54,11 @@ export default function PostCard({ post, currentUserId, onDelete }: Props) {
 
   return (
     <article className="post-card">
-      <div className="post-avatar" style={{ background: color }}>
-        {post.author_username[0].toUpperCase()}
+      <div className="post-avatar" style={post.author_avatar_url ? {} : { background: color }}>
+        {post.author_avatar_url
+          ? <img src={post.author_avatar_url} alt={post.author_username} className="post-avatar-img" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+          : post.author_username[0].toUpperCase()
+        }
       </div>
 
       <div className="post-body">

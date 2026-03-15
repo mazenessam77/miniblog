@@ -25,6 +25,17 @@ def _image_url(image_key: str | None) -> str | None:
     return f"https://{bucket}.s3.{region}.amazonaws.com/resized/medium/{filename}"
 
 
+def _avatar_url(avatar_key: str | None) -> str | None:
+    if not avatar_key:
+        return None
+    bucket = os.getenv("MEDIA_BUCKET", "")
+    region = os.getenv("AWS_REGION", "us-east-1")
+    if not bucket:
+        return None
+    filename = avatar_key[len("uploads/"):]
+    return f"https://{bucket}.s3.{region}.amazonaws.com/resized/thumb/{filename}"
+
+
 def _to_response(post: Post) -> PostResponse:
     return PostResponse(
         id=post.id,
@@ -33,6 +44,7 @@ def _to_response(post: Post) -> PostResponse:
         author_id=post.author_id,
         author_username=post.author.username,
         image_url=_image_url(post.image_key),
+        author_avatar_url=_avatar_url(post.author.avatar_key),
         created_at=post.created_at,
         updated_at=post.updated_at,
     )

@@ -5,6 +5,7 @@ interface User {
   id: number;
   username: string;
   email: string;
+  avatar_url?: string;
 }
 
 interface AuthContextType {
@@ -16,6 +17,7 @@ interface AuthContextType {
     password: string
   ) => Promise<void>;
   logout: () => void;
+  updateAvatar: (avatarUrl: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType>(null!);
@@ -58,8 +60,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
+  const updateAvatar = (avatarUrl: string) => {
+    if (!user) return;
+    const updated = { ...user, avatar_url: avatarUrl };
+    localStorage.setItem("user", JSON.stringify(updated));
+    setUser(updated);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, register, logout }}>
+    <AuthContext.Provider value={{ user, login, register, logout, updateAvatar }}>
       {children}
     </AuthContext.Provider>
   );

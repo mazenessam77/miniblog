@@ -7,6 +7,7 @@ import Dashboard from "./pages/Dashboard";
 import EditPost from "./pages/EditPost";
 import Feed from "./pages/Feed";
 import Login from "./pages/Login";
+import Profile from "./pages/Profile";
 import Register from "./pages/Register";
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
@@ -45,6 +46,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <EditPost />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <Profile />
               </ProtectedRoute>
             }
           />

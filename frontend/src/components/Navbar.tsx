@@ -1,4 +1,4 @@
-import { Home, LayoutDashboard, LogIn, LogOut, PenLine, UserPlus } from "lucide-react";
+import { Home, LayoutDashboard, LogIn, LogOut, PenLine, User, UserPlus } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 
@@ -56,6 +56,13 @@ export default function Navbar() {
             </Link>
           )}
 
+          {user && (
+            <Link to="/profile" className={link("/profile")}>
+              <User size={24} />
+              <span className="sidebar-link-label">Profile</span>
+            </Link>
+          )}
+
           {!user && (
             <>
               <Link to="/login" className={link("/login")}>
@@ -79,12 +86,17 @@ export default function Navbar() {
 
         {user && (
           <div className="sidebar-user">
-            <div
-              className="sidebar-avatar"
-              style={{ background: avatarColor(user.username) }}
-            >
-              {user.username[0].toUpperCase()}
-            </div>
+            <Link to="/profile">
+              <div
+                className="sidebar-avatar"
+                style={user.avatar_url ? {} : { background: avatarColor(user.username) }}
+              >
+                {user.avatar_url
+                  ? <img src={user.avatar_url} className="sidebar-avatar-img" alt={user.username} />
+                  : user.username[0].toUpperCase()
+                }
+              </div>
+            </Link>
             <div className="sidebar-user-info">
               <div className="sidebar-username">{user.username}</div>
               <div className="sidebar-handle">@{user.username.toLowerCase()}</div>
@@ -116,6 +128,10 @@ export default function Navbar() {
             <Link to="/create" className="mobile-nav-link">
               <PenLine size={22} />
               New
+            </Link>
+            <Link to="/profile" className={mobileLink("/profile")}>
+              <User size={22} />
+              Profile
             </Link>
             <button
               className="mobile-nav-link"

@@ -23,6 +23,7 @@ class PostResponse(BaseModel):
     author_id: int
     author_username: str
     image_url: Optional[str] = None
+    author_avatar_url: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
