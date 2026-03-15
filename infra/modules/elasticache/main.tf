@@ -4,9 +4,9 @@
 #  EKS pods connect on port 6379 (no TLS needed within VPC)
 # ─────────────────────────────────────────────────────────────────────────────
 
-variable "name"           { type = string }
-variable "vpc_id"         { type = string }
-variable "subnet_ids"     { type = list(string) }
+variable "name" { type = string }
+variable "vpc_id" { type = string }
+variable "subnet_ids" { type = list(string) }
 variable "eks_node_sg_id" { type = string }
 
 # ─── Security Group ───────────────────────────────────────────────────────────
