@@ -7,11 +7,13 @@ from pydantic import BaseModel, Field
 class PostCreate(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     content: str = Field(min_length=1)
+    image_key: Optional[str] = None
 
 
 class PostUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=200)
     content: Optional[str] = Field(None, min_length=1)
+    image_key: Optional[str] = None
 
 
 class PostResponse(BaseModel):
@@ -20,6 +22,7 @@ class PostResponse(BaseModel):
     content: str
     author_id: int
     author_username: str
+    image_url: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

@@ -114,6 +114,17 @@ module "s3" {
   project_name = var.project_name
 }
 
+# ─── Media (S3 + Lambda Resize) ──────────────────────────────────────────────
+
+module "media" {
+  source = "./modules/media"
+
+  name              = local.name
+  oidc_provider_arn = module.eks.oidc_provider_arn
+
+  depends_on = [module.eks]
+}
+
 # ─── CloudWatch (Monitoring & Alerting) ──────────────────────────────────────
 
 module "cloudwatch" {

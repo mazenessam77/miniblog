@@ -91,6 +91,23 @@ output "frontend_deploy_command" {
   value       = "aws s3 sync ./frontend/dist s3://${module.s3.bucket_name} --delete"
 }
 
+# ─── Media (S3 + Lambda) ─────────────────────────────────────────────────────
+
+output "media_bucket_name" {
+  description = "S3 bucket for media uploads — set as MEDIA_BUCKET in backend ConfigMap"
+  value       = module.media.bucket_name
+}
+
+output "media_backend_irsa_role_arn" {
+  description = "IRSA role ARN for backend pods — add as BACKEND_IRSA_ROLE_ARN GitHub Secret"
+  value       = module.media.backend_irsa_role_arn
+}
+
+output "media_lambda_function" {
+  description = "Image resize Lambda function name"
+  value       = module.media.lambda_function_name
+}
+
 # ─── ElastiCache (Redis) ─────────────────────────────────────────────────────
 
 output "redis_primary_endpoint" {

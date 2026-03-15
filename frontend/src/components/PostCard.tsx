@@ -7,6 +7,7 @@ interface Post {
   content: string;
   author_id: number;
   author_username: string;
+  image_url?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -66,6 +67,17 @@ export default function PostCard({ post, currentUserId, onDelete }: Props) {
 
         <div className="post-title">{post.title}</div>
         <div className="post-content-text">{post.content}</div>
+
+        {post.image_url && (
+          <img
+            src={post.image_url}
+            alt="Post image"
+            className="post-image"
+            onError={(e) => {
+              e.currentTarget.style.display = "none";
+            }}
+          />
+        )}
 
         {isOwner && (
           <div className="post-actions">

@@ -1,3 +1,4 @@
+import os
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -13,6 +14,17 @@ from app.services.rate_limit import limiter
 router = APIRouter(prefix="/posts", tags=["Posts"])
 
 
+def _image_url(image_key: str | None) -> str | None:
+    if not image_key:
+        return None
+    bucket = os.getenv("MEDIA_BUCKET", "")
+    region = os.getenv("AWS_REGION", "us-east-1")
+    if not bucket:
+        return None
+    filename = image_key[len("uploads/"):]
+    return f"https://{bucket}.s3.{region}.amazonaws.com/resized/medium/{filename}"
+
+
 def _to_response(post: Post) -> PostResponse:
     return PostResponse(
         id=post.id,
@@ -20,6 +32,7 @@ def _to_response(post: Post) -> PostResponse:
         content=post.content,
         author_id=post.author_id,
         author_username=post.author.username,
+        image_url=_image_url(post.image_key),
         created_at=post.created_at,
         updated_at=post.updated_at,
     )
@@ -48,7 +61,7 @@ def create_post(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    post = Post(title=data.title, content=data.content, author_id=user.id)
+    post = Post(title=data.title, content=data.content, author_id=user.id, image_key=data.image_key)
     db.add(post)
     db.commit()
     db.refresh(post)
@@ -74,6 +87,8 @@ def update_post(
         post.title = data.title
     if data.content is not None:
         post.content = data.content
+    if data.image_key is not None:
+        post.image_key = data.image_key
 
     db.commit()
     db.refresh(post)

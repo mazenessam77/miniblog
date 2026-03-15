@@ -576,6 +576,79 @@ a {
   color: var(--error);
 }
 
+/* ── Post Image ──────────────────────────────────────────────────────────── */
+.post-image {
+  display: block;
+  width: 100%;
+  max-height: 500px;
+  object-fit: cover;
+  border-radius: 12px;
+  margin-top: 12px;
+  border: 1px solid var(--border);
+}
+
+/* ── Image Upload ────────────────────────────────────────────────────────── */
+.upload-area {
+  border: 2px dashed var(--border-dark);
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+.upload-area:hover {
+  border-color: var(--primary);
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+.upload-preview {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.upload-preview img {
+  width: 100%;
+  max-height: 300px;
+  object-fit: cover;
+  display: block;
+  border-radius: 12px;
+}
+
+.upload-remove {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.upload-remove:hover {
+  background: rgba(0, 0, 0, 0.85);
+}
+
+.upload-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  padding: 8px 0;
+}
+
 /* ── Auth Pages ──────────────────────────────────────────────────────────── */
 .auth-page {
   min-height: 100vh;

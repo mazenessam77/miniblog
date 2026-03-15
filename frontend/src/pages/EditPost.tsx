@@ -1,5 +1,5 @@
-import { Loader2 } from "lucide-react";
-import { FormEvent, useEffect, useState } from "react";
+import { Image, Loader2, X } from "lucide-react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import api from "../services/api";
@@ -23,6 +23,13 @@ export default function EditPost() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // Image state
+  const [imageKey, setImageKey] = useState<string | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -31,17 +38,47 @@ export default function EditPost() {
       .then((res) => {
         setTitle(res.data.title);
         setContent(res.data.content);
+        if (res.data.image_url) {
+          setImagePreview(res.data.image_url);
+          // Reconstruct key from URL pattern
+          const parts = res.data.image_url.split("/resized/medium/");
+          if (parts[1]) setImageKey(`uploads/${parts[1]}`);
+        }
       })
       .catch(() => setError("Post not found"))
       .finally(() => setLoading(false));
   }, [id]);
 
+  const handleImageSelect = async (file: File) => {
+    if (!file.type.startsWith("image/")) return;
+    setUploading(true);
+    setError("");
+    try {
+      const { data } = await api.post("/media/presigned-url", {
+        filename: file.name,
+        content_type: file.type,
+      });
+      await fetch(data.upload_url, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": file.type },
+      });
+      setImageKey(data.key);
+      setImagePreview(URL.createObjectURL(file));
+    } catch {
+      setError("Image upload failed. Please try again.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (uploading) return;
     setError("");
     setSaving(true);
     try {
-      await api.put(`/posts/${id}`, { title, content });
+      await api.put(`/posts/${id}`, { title, content, image_key: imageKey });
       navigate("/dashboard");
     } catch (err: any) {
       setError(err.response?.data?.detail || "Failed to update post");
@@ -85,6 +122,7 @@ export default function EditPost() {
               required
               maxLength={200}
             />
+
             <textarea
               className="compose-body"
               placeholder="What's on your mind?"
@@ -93,6 +131,47 @@ export default function EditPost() {
               required
               maxLength={MAX_CONTENT}
             />
+
+            {uploading && (
+              <div className="upload-progress">
+                <Loader2 size={16} className="spin" />
+                Uploading image…
+              </div>
+            )}
+
+            {imagePreview && !uploading ? (
+              <div className="upload-preview">
+                <img src={imagePreview} alt="Preview" />
+                <button
+                  type="button"
+                  className="upload-remove"
+                  onClick={() => {
+                    setImageKey(null);
+                    setImagePreview(null);
+                  }}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ) : !uploading ? (
+              <div
+                className="upload-area"
+                onClick={() => fileRef.current?.click()}
+              >
+                <Image size={20} style={{ margin: "0 auto 6px" }} />
+                {imageKey ? "Change photo" : "Add a photo (optional)"}
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleImageSelect(f);
+                  }}
+                />
+              </div>
+            ) : null}
 
             <div className="compose-footer">
               <span
@@ -105,7 +184,7 @@ export default function EditPost() {
               <button
                 type="submit"
                 className="btn"
-                disabled={saving || !title.trim() || !content.trim()}
+                disabled={saving || uploading || !title.trim() || !content.trim()}
               >
                 {saving && <span className="btn-spinner" />}
                 {saving ? "Saving…" : "Save changes"}

@@ -20,6 +20,12 @@ data:
   # Multiple origins: comma-separated
   CORS_ORIGINS: "http://miniblog-frontend-541405370428.s3-website-us-east-1.amazonaws.com"
 
+  # ── Media (S3 photo uploads) ──────────────────────────────────────────────
+  # Get bucket name after `terraform apply`:
+  #   terraform output -raw media_bucket_name
+  MEDIA_BUCKET: "miniblog-production-media-541405370428"
+  AWS_REGION: "us-east-1"
+
   # ── Python / Uvicorn ─────────────────────────────────────────────────────
   PYTHONUNBUFFERED: "1"
   PYTHONDONTWRITEBYTECODE: "1"

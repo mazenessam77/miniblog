@@ -1,5 +1,5 @@
-import { PenLine } from "lucide-react";
-import { FormEvent, useState } from "react";
+import { Image, Loader2, PenLine, X } from "lucide-react";
+import { FormEvent, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import api from "../services/api";
@@ -21,16 +21,47 @@ export default function CreatePost() {
   const [content, setContent] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
 
+  // Image state
+  const [imageKey, setImageKey] = useState<string | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const navigate = useNavigate();
   const remaining = MAX_CONTENT - content.length;
+  const color = user ? avatarColor(user.username) : "#1d9bf0";
+
+  const handleImageSelect = async (file: File) => {
+    if (!file.type.startsWith("image/")) return;
+    setUploading(true);
+    setError("");
+    try {
+      const { data } = await api.post("/media/presigned-url", {
+        filename: file.name,
+        content_type: file.type,
+      });
+      await fetch(data.upload_url, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": file.type },
+      });
+      setImageKey(data.key);
+      setImagePreview(URL.createObjectURL(file));
+    } catch {
+      setError("Image upload failed. Please try again.");
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (uploading) return;
     setError("");
     setLoading(true);
     try {
-      await api.post("/posts", { title, content });
+      await api.post("/posts", { title, content, image_key: imageKey });
       navigate("/dashboard");
     } catch (err: any) {
       setError(err.response?.data?.detail || "Failed to create post");
@@ -38,8 +69,6 @@ export default function CreatePost() {
       setLoading(false);
     }
   };
-
-  const color = user ? avatarColor(user.username) : "#1d9bf0";
 
   return (
     <div>
@@ -65,6 +94,7 @@ export default function CreatePost() {
               required
               maxLength={200}
             />
+
             <textarea
               className="compose-body"
               placeholder="What's on your mind?"
@@ -73,6 +103,48 @@ export default function CreatePost() {
               required
               maxLength={MAX_CONTENT}
             />
+
+            {/* Image upload area */}
+            {uploading && (
+              <div className="upload-progress">
+                <Loader2 size={16} className="spin" />
+                Uploading image…
+              </div>
+            )}
+
+            {imagePreview && !uploading ? (
+              <div className="upload-preview">
+                <img src={imagePreview} alt="Preview" />
+                <button
+                  type="button"
+                  className="upload-remove"
+                  onClick={() => {
+                    setImageKey(null);
+                    setImagePreview(null);
+                  }}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ) : !uploading ? (
+              <div
+                className="upload-area"
+                onClick={() => fileRef.current?.click()}
+              >
+                <Image size={20} style={{ margin: "0 auto 6px" }} />
+                Add a photo (optional)
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleImageSelect(f);
+                  }}
+                />
+              </div>
+            ) : null}
 
             <div className="compose-footer">
               <span
@@ -85,7 +157,7 @@ export default function CreatePost() {
               <button
                 type="submit"
                 className="btn"
-                disabled={loading || !title.trim() || !content.trim()}
+                disabled={loading || uploading || !title.trim() || !content.trim()}
               >
                 {loading && <span className="btn-spinner" />}
                 {loading ? "Publishing…" : "Publish"}

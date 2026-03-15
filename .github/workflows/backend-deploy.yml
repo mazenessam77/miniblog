@@ -10,7 +10,7 @@
 #    - PR with backend/ changes   → test + build (no deploy)
 #    - Push to main with backend/ → test + build + deploy to EKS
 # ─────────────────────────────────────────────────────────────────────────────
-name: "⚙️ Backend Deploy"
+name: "⚙ Backend Deploy"
 
 on:
   push:
@@ -33,7 +33,7 @@ env:
 jobs:
   # ─── Test ────────────────────────────────────────────────────────────────
   test:
-    name: "🧪 Test"
+    name: "Test"
     runs-on: ubuntu-latest
 
     services:
@@ -54,7 +54,7 @@ jobs:
       redis:
         image: redis:7-alpine
         ports:
-          - 6379:6379
+          - 379:379
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s
@@ -82,13 +82,13 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/miniblog_test
           SECRET_KEY: test-secret-key-for-ci
-          REDIS_URL: redis://localhost:6379/0
+          REDIS_URL: redis://localhost:379/0
         run: |
           # Run pytest if tests exist, otherwise just verify the app starts
           if [ -d "tests" ] && [ "$(ls tests/)" ]; then
             pytest tests/ -v
           else
-            python -c "from app.main import app; print('✅ App imports successfully')"
+            python -c "from app.main import app; print(' App imports successfully')"
           fi
 
       - name: Lint check
@@ -99,7 +99,7 @@ jobs:
 
   # ─── Build & Push to ECR (Step 2) ───────────────────────────────────────
   build-and-push:
-    name: "🐳 Build & Push to ECR"
+    name: "Build & Push to ECR"
     runs-on: ubuntu-latest
     needs: test
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
@@ -151,13 +151,13 @@ jobs:
           docker push $IMAGE_URI --all-tags
           
           echo "image-uri=$IMAGE_URI:$SHORT_SHA" >> $GITHUB_OUTPUT
-          echo "✅ Pushed: $IMAGE_URI:$SHORT_SHA"
-          echo "✅ Pushed: $IMAGE_URI:latest"
-          echo "✅ Pushed: $IMAGE_URI:main-${{ github.run_number }}"
+          echo "Pushed: $IMAGE_URI:$SHORT_SHA"
+          echo "Pushed: $IMAGE_URI:latest"
+          echo "Pushed: $IMAGE_URI:main-${{ github.run_number }}"
 
   # ─── Deploy to EKS (Steps 3 + 4) ────────────────────────────────────────
   deploy:
-    name: "🚀 Deploy to EKS"
+    name: "Deploy to EKS"
     runs-on: ubuntu-latest
     needs: build-and-push
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
@@ -191,14 +191,16 @@ jobs:
             --namespace=${{ env.K8S_NAMESPACE }} \
             --from-literal=DATABASE_URL="postgresql://miniblog_admin:${{ secrets.RDS_PASSWORD }}@${{ secrets.RDS_ENDPOINT }}/miniblog" \
             --from-literal=SECRET_KEY="${{ secrets.JWT_SECRET_KEY }}" \
-            --from-literal=REDIS_URL="redis://${{ secrets.REDIS_ENDPOINT }}:6379/0" \
+            --from-literal=REDIS_URL="redis://${{ secrets.REDIS_ENDPOINT }}:379/0" \
             --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Apply ConfigMap
         run: kubectl apply -f infra/k8s/backend-configmap.yaml
 
-      - name: Apply ServiceAccount
-        run: kubectl apply -f infra/k8s/backend-serviceaccount.yaml
+      - name: Apply ServiceAccount with IRSA annotation
+        run: |
+          sed "s|REPLACE_WITH_BACKEND_IRSA_ROLE_ARN|${{ secrets.BACKEND_IRSA_ROLE_ARN }}|g" \
+            infra/k8s/backend-serviceaccount.yaml | kubectl apply -f -
 
       # ── Step 4: kubectl apply → deploy pods ────────────────────────────
       - name: Apply Service and Ingress
@@ -222,7 +224,7 @@ jobs:
 
       - name: Wait for rollout
         run: |
-          echo "⏳ Waiting for deployment rollout..."
+          echo "Waiting for deployment rollout..."
           kubectl rollout status deployment/backend \
             --namespace=${{ env.K8S_NAMESPACE }} \
             --timeout=180s
@@ -234,25 +236,25 @@ jobs:
             -o jsonpath='{.items[0].status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
           
           if [ -n "$ALB_DNS" ]; then
-            echo "🔍 Checking health at http://$ALB_DNS/health ..."
+            echo "Checking health at http://$ALB_DNS/health ..."
             sleep 30  # Give ALB time to register targets
             
             for i in $(seq 1 5); do
               STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://$ALB_DNS/health" || echo "000")
               if [ "$STATUS" = "200" ]; then
-                echo "✅ Health check passed!"
+                echo "Health check passed!"
                 break
               fi
-              echo "⏳ Attempt $i/5 — got HTTP $STATUS, retrying in 15s..."
+              echo "Attempt $i/5 — got HTTP $STATUS, retrying in 15s..."
               sleep 15
             done
           else
-            echo "⚠️ ALB not ready yet — skipping health check"
+            echo "ALB not ready yet — skipping health check"
           fi
 
       - name: Deployment summary
         run: |
-          echo "## ⚙️ Backend Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "## ⚙ Backend Deployed" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Detail | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
@@ -267,7 +269,7 @@ jobs:
 
   # ─── Rollback (manual trigger) ──────────────────────────────────────────
   rollback:
-    name: "⏪ Rollback"
+    name: "Rollback"
     runs-on: ubuntu-latest
     if: failure() && needs.deploy.result == 'failure'
     needs: deploy
@@ -288,7 +290,7 @@ jobs:
 
       - name: Rollback deployment
         run: |
-          echo "❌ Deployment failed — rolling back..."
+          echo "Deployment failed — rolling back..."
           kubectl rollout undo deployment/backend \
             --namespace=${{ env.K8S_NAMESPACE }}
           
@@ -296,6 +298,6 @@ jobs:
             --namespace=${{ env.K8S_NAMESPACE }} \
             --timeout=120s
           
-          echo "✅ Rollback completed"
-          echo "## ⏪ Rollback Executed" >> $GITHUB_STEP_SUMMARY
+          echo "Rollback completed"
+          echo "##  Rollback Executed" >> $GITHUB_STEP_SUMMARY
           echo "Deployment failed and was rolled back to the previous version." >> $GITHUB_STEP_SUMMARY

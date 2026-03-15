@@ -7,6 +7,8 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
+from sqlalchemy import text
+
 from app.database.connection import Base, engine
 import app.models.user  # noqa: F401 — register User with Base
 import app.models.post  # noqa: F401 — register Post with Base
@@ -50,10 +52,11 @@ app.add_middleware(
 )
 
 # ─── Routes ───────────────────────────────────────────────────────────────────
-from app.routes import auth, posts  # noqa: E402
+from app.routes import auth, media, posts  # noqa: E402
 
 app.include_router(auth.router)
 app.include_router(posts.router)
+app.include_router(media.router)
 
 
 @app.get("/health", tags=["Health"])
@@ -63,6 +66,12 @@ def health_check():
 
 @app.on_event("startup")
 def startup_event():
+    # Idempotent migration: add image_key column if not present
+    with engine.connect() as conn:
+        conn.execute(
+            text("ALTER TABLE posts ADD COLUMN IF NOT EXISTS image_key VARCHAR(500)")
+        )
+        conn.commit()
     logger.info("MiniBlog API started")
     logger.info(f"CORS origins: {cors_origins}")
 
