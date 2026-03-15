@@ -20,6 +20,7 @@ on:
     paths:
       - "infra/**"
       - "!infra/k8s/**"
+  workflow_dispatch:
 
 env:
   TF_WORKING_DIR: infra
