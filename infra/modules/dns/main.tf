@@ -54,10 +54,13 @@ resource "aws_route53_record" "cert_validation" {
   zone_id         = aws_route53_zone.main.zone_id
 }
 
-resource "aws_acm_certificate_validation" "main" {
-  certificate_arn         = aws_acm_certificate.main.arn
-  validation_record_fqdns = [for record in aws_route53_record.cert_validation : record.fqdn]
-}
+# aws_acm_certificate_validation is intentionally omitted.
+# Terraform would block for up to 75 min waiting for DNS propagation.
+# Instead, the CI pipeline does: terraform apply -target=module.dns first,
+# then polls `aws acm describe-certificate` until status=ISSUED, then
+# runs full terraform apply. This lets the apply complete on the first run
+# for existing/already-validated certs, and fail fast with clear NS record
+# instructions when the domain hasn't been delegated yet.
 
 # ─── API Subdomain (CNAME → ALB) ─────────────────────────────────────────────
 

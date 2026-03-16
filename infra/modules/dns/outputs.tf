@@ -5,7 +5,7 @@ output "zone_id" {
 
 output "certificate_arn" {
   description = "ACM certificate ARN — covers domain + *.domain (valid for CloudFront and ALB)"
-  value       = aws_acm_certificate_validation.main.certificate_arn
+  value       = aws_acm_certificate.main.arn
 }
 
 output "name_servers" {
