@@ -105,27 +105,13 @@ module "elasticache" {
   depends_on = [module.vpc, module.eks]
 }
 
-# ─── DNS — Route53 + ACM Certificate ─────────────────────────────────────────
-
-module "dns" {
-  source = "./modules/dns"
-
-  domain_name  = var.domain_name
-  alb_dns_name = var.alb_dns
-}
-
 # ─── S3 + CloudFront (Static Frontend) ───────────────────────────────────────
 
 module "s3" {
   source = "./modules/s3"
 
-  name            = local.name
-  project_name    = var.project_name
-  domain_name     = var.domain_name
-  zone_id         = module.dns.zone_id
-  certificate_arn = module.dns.certificate_arn
-
-  depends_on = [module.dns]
+  name         = local.name
+  project_name = var.project_name
 }
 
 # ─── Media (S3 + Lambda Resize) ──────────────────────────────────────────────

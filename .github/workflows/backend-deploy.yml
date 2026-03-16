@@ -195,7 +195,9 @@ jobs:
             --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Apply ConfigMap
-        run: kubectl apply -f infra/k8s/backend-configmap.yaml
+        run: |
+          sed "s|CLOUDFRONT_HTTPS_PLACEHOLDER|https://${{ secrets.CLOUDFRONT_DOMAIN }}|g" \
+            infra/k8s/backend-configmap.yaml | kubectl apply -f -
 
       - name: Apply ServiceAccount with IRSA annotation
         run: |
@@ -206,9 +208,7 @@ jobs:
       - name: Apply Service and Ingress
         run: |
           kubectl apply -f infra/k8s/backend-service.yaml
-          # Inject ACM certificate ARN into ingress annotation
-          sed "s|ACM_CERT_ARN_PLACEHOLDER|${{ secrets.ACM_CERT_ARN }}|g" \
-            infra/k8s/backend-ingress.yaml | kubectl apply -f -
+          kubectl apply -f infra/k8s/backend-ingress.yaml
           kubectl apply -f infra/k8s/backend-hpa.yaml
 
       - name: Deploy with new image
@@ -233,17 +233,23 @@ jobs:
 
       - name: Health check
         run: |
-          echo "Checking health at https://api.miniblog.com/health ..."
-          sleep 15  # Give pods time to register as healthy targets
-          for i in $(seq 1 5); do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://api.miniblog.com/health" || echo "000")
-            if [ "$STATUS" = "200" ]; then
-              echo "Health check passed (HTTP $STATUS)"
-              break
-            fi
-            echo "Attempt $i/5 — got HTTP $STATUS, retrying in 15s..."
+          ALB_DNS=$(kubectl get ingress backend-ingress -n ${{ env.K8S_NAMESPACE }} \
+            -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
+          if [ -n "$ALB_DNS" ]; then
+            echo "Checking health at http://$ALB_DNS/health ..."
             sleep 15
-          done
+            for i in $(seq 1 5); do
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://$ALB_DNS/health" || echo "000")
+              if [ "$STATUS" = "200" ]; then
+                echo "Health check passed (HTTP $STATUS)"
+                break
+              fi
+              echo "Attempt $i/5 — got HTTP $STATUS, retrying in 15s..."
+              sleep 15
+            done
+          else
+            echo "ALB not ready yet — skipping health check"
+          fi
 
       - name: Deployment summary
         run: |

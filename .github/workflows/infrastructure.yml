@@ -1,8 +1,6 @@
 # ─────────────────────────────────────────────────────────────────────────────
 #  Pipeline 1: Infrastructure — Terraform Plan / Apply
 #
-#  Automates Step 1: terraform apply → creates all AWS resources
-#
 #  Triggers:
 #    - PR with infra/ changes    → terraform plan (comment on PR)
 #    - Push to main with infra/  → terraform apply (auto-deploy)
@@ -82,7 +80,6 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
         env:
           TF_VAR_rds_password: ${{ secrets.RDS_PASSWORD }}
-          TF_VAR_alb_dns: ${{ secrets.ALB_DNS }}
         run: terraform plan -no-color -out=tfplan
         continue-on-error: true
 
@@ -91,12 +88,12 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const output = `####  Terraform Plan
+            const output = `#### Terraform Plan
             \`\`\`
             ${{ steps.plan.outputs.stdout }}
             \`\`\`
 
-            **Result:** ${{ steps.plan.outcome == 'success' && ' Plan succeeded' || ' Plan failed' }}
+            **Result:** ${{ steps.plan.outcome == 'success' && 'Plan succeeded' || 'Plan failed' }}
 
             *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
 
@@ -164,60 +161,10 @@ jobs:
           name: tfplan
           path: ${{ env.TF_WORKING_DIR }}
 
-      # ── Phase 1: DNS bootstrap (zone + cert + records, no validation wait) ──
-      - name: Bootstrap DNS module
-        working-directory: ${{ env.TF_WORKING_DIR }}
-        env:
-          TF_VAR_rds_password: ${{ secrets.RDS_PASSWORD }}
-          TF_VAR_alb_dns: ${{ secrets.ALB_DNS }}
-        run: terraform apply -auto-approve -target=module.dns
-
-      - name: Print Route53 name servers
-        working-directory: ${{ env.TF_WORKING_DIR }}
-        run: |
-          NS=$(terraform output -json name_servers 2>/dev/null | jq -r '.[]' 2>/dev/null || echo "")
-          CERT_ARN=$(terraform output -raw acm_certificate_arn 2>/dev/null || echo "")
-          echo "### Route53 Name Servers" >> $GITHUB_STEP_SUMMARY
-          echo "Point your domain registrar to these NS records:" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "$NS" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "ACM Cert ARN: $CERT_ARN" >> $GITHUB_STEP_SUMMARY
-
-      # ── Phase 2: Wait for ACM cert to be ISSUED ──────────────────────────
-      - name: Wait for ACM certificate validation
-        working-directory: ${{ env.TF_WORKING_DIR }}
-        run: |
-          CERT_ARN=$(terraform output -raw acm_certificate_arn 2>/dev/null || echo "")
-          if [ -z "$CERT_ARN" ]; then
-            echo "No cert ARN in state — skipping wait"
-            exit 0
-          fi
-          echo "Waiting for certificate to be ISSUED: $CERT_ARN"
-          echo "If you haven't set NS records at your registrar, do it now."
-          for i in $(seq 1 30); do
-            STATUS=$(aws acm describe-certificate \
-              --certificate-arn "$CERT_ARN" \
-              --region us-east-1 \
-              --query 'Certificate.Status' \
-              --output text 2>/dev/null || echo "UNKNOWN")
-            echo "[$i/30] Status: $STATUS"
-            if [ "$STATUS" = "ISSUED" ]; then
-              echo "Certificate is ISSUED — proceeding with full apply"
-              exit 0
-            fi
-            sleep 30
-          done
-          echo "::error::Certificate not ISSUED after 15 minutes."
-          echo "Set the Route53 NS records at your domain registrar, then re-run this workflow."
-          exit 1
-
-      # ── Phase 3: Full apply from saved plan ──────────────────────────────
       - name: Terraform Apply
         working-directory: ${{ env.TF_WORKING_DIR }}
         env:
           TF_VAR_rds_password: ${{ secrets.RDS_PASSWORD }}
-          TF_VAR_alb_dns: ${{ secrets.ALB_DNS }}
         run: terraform apply -auto-approve tfplan
 
       # ── Update GitHub Secrets with new infrastructure values ─────────
@@ -227,49 +174,35 @@ jobs:
           REPO: ${{ github.repository }}
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
-          # Capture outputs
-          ACM_CERT_ARN=$(terraform output -raw acm_certificate_arn 2>/dev/null || echo "")
           CF_DIST_ID=$(terraform output -raw frontend_cloudfront_distribution_id 2>/dev/null || echo "")
           S3_BUCKET=$(terraform output -raw frontend_s3_bucket 2>/dev/null || echo "")
           CF_DOMAIN=$(terraform output -raw frontend_cloudfront_domain 2>/dev/null || echo "")
 
-          # Update secrets via GitHub CLI
-          if [ -n "$ACM_CERT_ARN" ]; then
-            echo "$ACM_CERT_ARN" | gh secret set ACM_CERT_ARN --repo "$REPO"
-            echo "Updated ACM_CERT_ARN"
-          fi
           if [ -n "$CF_DIST_ID" ]; then
             echo "$CF_DIST_ID" | gh secret set CLOUDFRONT_DISTRIBUTION_ID --repo "$REPO"
-            echo "Updated CLOUDFRONT_DISTRIBUTION_ID"
           fi
           if [ -n "$S3_BUCKET" ]; then
             echo "$S3_BUCKET" | gh secret set S3_BUCKET_NAME --repo "$REPO"
-            echo "Updated S3_BUCKET_NAME"
           fi
           if [ -n "$CF_DOMAIN" ]; then
             echo "$CF_DOMAIN" | gh secret set CLOUDFRONT_DOMAIN --repo "$REPO"
-            echo "Updated CLOUDFRONT_DOMAIN"
+            # API_URL stays as ALB HTTP — frontend calls it directly
+            ALB_DNS=$(kubectl get ingress backend-ingress -n miniblog \
+              -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
+            if [ -n "$ALB_DNS" ]; then
+              echo "http://$ALB_DNS" | gh secret set API_URL --repo "$REPO"
+            fi
           fi
-          # Set API_URL so the frontend build uses the correct endpoint
-          echo "https://api.miniblog.com" | gh secret set API_URL --repo "$REPO"
-          echo "Updated API_URL"
 
       - name: Output Summary
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
+          CF_DOMAIN=$(terraform output -raw frontend_cloudfront_domain 2>/dev/null || echo "")
           echo "## Infrastructure Deployed" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Resource | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| EKS Cluster | $(terraform output -raw eks_cluster_name) |" >> $GITHUB_STEP_SUMMARY
-          echo "| RDS Endpoint | \`(sensitive)\` |" >> $GITHUB_STEP_SUMMARY
           echo "| S3 Bucket | $(terraform output -raw frontend_s3_bucket) |" >> $GITHUB_STEP_SUMMARY
-          echo "| CloudFront | $(terraform output -raw frontend_cloudfront_domain) |" >> $GITHUB_STEP_SUMMARY
-          echo "| Site URL | $(terraform output -raw site_url) |" >> $GITHUB_STEP_SUMMARY
-          echo "| API URL | $(terraform output -raw api_url) |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Route53 Name Servers" >> $GITHUB_STEP_SUMMARY
-          echo "Configure these at your domain registrar:" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          terraform output -json name_servers | jq -r '.[]' >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "| CloudFront | $CF_DOMAIN |" >> $GITHUB_STEP_SUMMARY
+          echo "| Site URL | https://$CF_DOMAIN |" >> $GITHUB_STEP_SUMMARY

@@ -3,7 +3,7 @@
 #
 #  S3 bucket is private (no public access).
 #  CloudFront serves content via Origin Access Control (OAC).
-#  Route53 A records point miniblog.com and www.miniblog.com → CloudFront.
+#  Uses the default *.cloudfront.net domain — HTTPS is free and automatic.
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ─── S3 Bucket (private — served via CloudFront) ─────────────────────────────
@@ -78,7 +78,6 @@ resource "aws_cloudfront_distribution" "frontend" {
   enabled             = true
   is_ipv6_enabled     = true
   default_root_object = "index.html"
-  aliases             = [var.domain_name, "www.${var.domain_name}"]
   comment             = "${var.name} frontend"
   price_class         = "PriceClass_100" # US, Canada, Europe
 
@@ -101,11 +100,11 @@ resource "aws_cloudfront_distribution" "frontend" {
     }
 
     min_ttl     = 0
-    default_ttl = 86400    # 1 day for assets
-    max_ttl     = 31536000 # 1 year
+    default_ttl = 86400
+    max_ttl     = 31536000
   }
 
-  # React Router SPA — map S3 access-denied / not-found back to index.html
+  # React Router SPA — map S3 403/404 back to index.html
   custom_error_response {
     error_code            = 403
     response_code         = 200
@@ -120,10 +119,9 @@ resource "aws_cloudfront_distribution" "frontend" {
     error_caching_min_ttl = 0
   }
 
+  # Default CloudFront certificate — covers *.cloudfront.net with HTTPS
   viewer_certificate {
-    acm_certificate_arn      = var.certificate_arn
-    ssl_support_method       = "sni-only"
-    minimum_protocol_version = "TLSv1.2_2021"
+    cloudfront_default_certificate = true
   }
 
   restrictions {
@@ -131,32 +129,6 @@ resource "aws_cloudfront_distribution" "frontend" {
   }
 
   tags = { Name = "${var.name}-cloudfront" }
-}
-
-# ─── Route53 A Records → CloudFront ──────────────────────────────────────────
-
-resource "aws_route53_record" "apex" {
-  zone_id = var.zone_id
-  name    = var.domain_name
-  type    = "A"
-
-  alias {
-    name                   = aws_cloudfront_distribution.frontend.domain_name
-    zone_id                = aws_cloudfront_distribution.frontend.hosted_zone_id
-    evaluate_target_health = false
-  }
-}
-
-resource "aws_route53_record" "www" {
-  zone_id = var.zone_id
-  name    = "www.${var.domain_name}"
-  type    = "A"
-
-  alias {
-    name                   = aws_cloudfront_distribution.frontend.domain_name
-    zone_id                = aws_cloudfront_distribution.frontend.hosted_zone_id
-    evaluate_target_health = false
-  }
 }
 
 data "aws_caller_identity" "current" {}

@@ -4,7 +4,7 @@ output "bucket_name" {
 }
 
 output "cloudfront_domain" {
-  description = "CloudFront distribution domain name"
+  description = "CloudFront distribution domain (e.g. xxxxx.cloudfront.net)"
   value       = aws_cloudfront_distribution.frontend.domain_name
 }
 

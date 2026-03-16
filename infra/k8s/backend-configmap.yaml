@@ -15,7 +15,8 @@ metadata:
     app.kubernetes.io/part-of: miniblog-platform
 data:
   # ── CORS ─────────────────────────────────────────────────────────────────
-  CORS_ORIGINS: "https://miniblog.com,https://www.miniblog.com"
+  # Replaced by CI with https://<cloudfront-domain> from secrets.CLOUDFRONT_DOMAIN
+  CORS_ORIGINS: "CLOUDFRONT_HTTPS_PLACEHOLDER,http://localhost:3000"
 
   # ── Media (S3 photo uploads) ──────────────────────────────────────────────
   # Get bucket name after `terraform apply`:

@@ -101,16 +101,3 @@ variable "rds_multi_az" {
   default     = true
 }
 
-# ─── DNS ────────────────────────────────────────────────────────────────────
-
-variable "domain_name" {
-  description = "Root domain name managed in Route 53"
-  type        = string
-  default     = "miniblog.com"
-}
-
-variable "alb_dns" {
-  description = "ALB DNS name created by the AWS Load Balancer Controller (used for api.<domain> CNAME)"
-  type        = string
-  default     = ""
-}
