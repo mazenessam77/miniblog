@@ -63,8 +63,12 @@ resource "aws_route53_record" "cert_validation" {
 # instructions when the domain hasn't been delegated yet.
 
 # ─── API Subdomain (CNAME → ALB) ─────────────────────────────────────────────
+# Only created when alb_dns_name is provided (set ALB_DNS GitHub secret after
+# the first EKS deploy creates the load balancer).
 
 resource "aws_route53_record" "api" {
+  count = var.alb_dns_name != "" ? 1 : 0
+
   zone_id = aws_route53_zone.main.zone_id
   name    = "api.${var.domain_name}"
   type    = "CNAME"
